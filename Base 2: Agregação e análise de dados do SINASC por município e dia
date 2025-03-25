@@ -1,0 +1,86 @@
+
+* Base 2 -Agregação e análise de dados do SINASC por município e dia
+clear
+use  "C:\Users\marci\Downloads\Monografia_juliana\novas bases\Base1_ind-munic_sexo_bebe_parcial.dta", clear
+
+*colapse por dia por municipio - soma nasc por dia, meninas e meninos
+
+collapse (sum) birth sexo_masc sexo_fem (first) pop sexo_bebe solteira_dummy parto_dummy sexo_bebe_dummy raca_bebe_dummy escolaridade_mae_dummy raca_mae_dummy consultas_dummy_categorica semanas_gestacao_dummy  month year (sum) microcefalia  (mean) anos_estudo_mae peso_bebe numero_gestacoes idade_mae apgar1 apgar5 numero_filhos_vivos numero_semanas_gestacoes numconsultas_pre_natal indice_kotelchuck, by(dtnasc_bebe cod_munic)
+
+*razao entre menina/menino
+gen sex_ratio =  sexo_masc/sexo_fem
+
+*criando teve_microcefalia- perguntar se é pra inverter a logica do bysort (eu inverti)
+gen microcefalia_pop = (microcefalia*pop)/100000 
+drop if microcefalia_pop == . 
+gen teve_microcefalia = 0
+bysort dtnasc_bebe (cod_munic): replace teve_microcefalia = 1 if microcefalia_pop >= 1
+
+*nascimentos por 100 mil habitantes 
+gen birth_pop = (birth*pop)/100000
+gen ln_birth = ln(birth_pop)
+
+
+* variavel trimestre
+gen quarter_num = .
+replace quarter_num = 1 if month>=1&month<=3
+replace quarter_num = 2 if month>=4&month<=6
+replace quarter_num = 3 if month>=7&month<=9
+replace quarter_num = 4 if month>=10&month<=12
+
+egen quarter = concat(year quarter_num)
+destring quarter, replace
+
+egen population=mean(pop), by(cod_munic)
+
+
+gen ln_peso = ln(peso_bebe)
+*regressao 
+
+xtset cod_munic dtnasc_bebe
+
+xtreg sex_ratio teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter [w=population], fe rob
+est sto reg1
+
+xtreg ln_birth teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter  [w=population], fe rob
+est sto reg2
+
+xtreg ln_peso teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter [w=population], fe rob
+est sto reg3
+
+esttab reg1 reg2 reg3
+
+esttab reg1 reg2 reg3 using "resultados_reg_municipio_diario.csv",
+
+* regressao por ano - 2015 e 2016 separadamente 
+keep if year == 2015 
+
+xtset cod_munic dtnasc_bebe
+
+xtreg sex_ratio teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter [w=population], fe rob
+est sto reg4
+
+xtreg ln_birth teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter  [w=population], fe rob
+est sto reg5
+
+xtreg ln_peso teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter [w=population], fe rob
+est sto reg6
+
+esttab reg4 reg5 reg6 using "resultados_regressoes_base2.2.csv",
+
+*ano de 2016
+keep if year == 2016
+
+xtset cod_munic dtnasc_bebe
+
+xtreg sex_ratio teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter [w=population], fe rob
+est sto reg7
+
+xtreg ln_birth teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter  [w=population], fe rob
+est sto reg8
+
+xtreg ln_peso teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter [w=population], fe rob
+est sto reg9
+
+esttab reg7 reg8 reg9 
+esttab reg7 reg8 reg9 using "resultados_regressoes_base2.3.csv",
