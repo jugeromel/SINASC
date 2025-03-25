@@ -1,17 +1,5 @@
 **# Base 1:  Tratamento e preparação dos dados do SINASC 2015 e 2016 para análise epidemiológica
 
-*Resumo
-*Este código realiza o pré-processamento dos dados do SINASC (Sistema de Informações sobre Nascidos Vivos) dos anos de 2015 e 2016. \\
-Primeiramente, ele umas planilhas desses anos em um único banco de dados. Em seguida, faz a padronização das variáveis, renomeando \\
-colunas para facilitar a interpretação e criando novas variáveis ​​derivadas. Entre as transformações, o código inclui a criação de variáveis \\
-​​dummy para características maternas e do recém-nascido, como sexo do bebê, estado civil da mãe, tipo de parto, escolaridade materna, raça, \\
-número de consultas pré-natal e idade gestacional. Também são geradas variáveis ​​categóricas para facilitar a análise, como trimestre do \\
-nascimento e regiões do Brasil, com base no código do município. Além disso, há um tratamento específico para dados e códigos de anomalias congênitas,\\
-incluindo a geração de um indicador variável para microcefalia. Posteriormente, os dados do SINASC são combinados com informações da população residente por município, \\
-permitindo o cálculo de indicadores como taxas de nascimento por 100 mil habitantes ( ln_birth) e prevalência de microcefalia na população ( microcefalia_pop). \\
-Por fim, o código realiza regressões para avaliar os efeitos da microcefalia e outras variáveis ​​socioeconômicas e demográficas sobre o peso ao nascer, \\
-a idade gestacional e os índices de Apgar. Os resultados das regressões são armazenados e exportados para diferentes formatos de relatório, garantindo que possam ser utilizados para análises futuras.\\
-
 
 *unindo bases(planilhas) de 2015 e 2016
 use "C:\Users\marci\OneDrive\Documentos\Monografia_juliana\planilha_2010_2020\sinasc_2015.dta", clear
