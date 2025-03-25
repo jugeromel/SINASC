@@ -5,7 +5,8 @@ Este repositório contém os códigos e as análises realizadas a partir dos dad
 ## Estrutura do Repositório
 
 O repositório está organizado da seguinte forma:
-/sinasc_data ├── sinasc_2015.dta # Dados de nascimentos em 2015 ├── sinasc_2016.dta 
+/sinasc_data ├── sinasc_2015.dta 
+# Dados de nascimentos em 2015 ├── sinasc_2016.dta 
 # Dados de nascimentos em 2016 ├── sinasc_cleaned.dta 
 # Dados tratados e preparados para análise ├── sinasc_zika_impact.dta 
 # Dados de impacto do Zika na taxa de nascimentos /notebooks ├── 01_eda_sinasc.ipynb 
