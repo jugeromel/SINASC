@@ -1,0 +1,180 @@
+**# Base 1:  Tratamento e preparação dos dados do SINASC 2015 e 2016 para análise epidemiológica
+
+*Resumo
+*Este código realiza o pré-processamento dos dados do SINASC (Sistema de Informações sobre Nascidos Vivos) dos anos de 2015 e 2016. \\
+Primeiramente, ele umas planilhas desses anos em um único banco de dados. Em seguida, faz a padronização das variáveis, renomeando \\
+colunas para facilitar a interpretação e criando novas variáveis ​​derivadas. Entre as transformações, o código inclui a criação de variáveis \\
+​​dummy para características maternas e do recém-nascido, como sexo do bebê, estado civil da mãe, tipo de parto, escolaridade materna, raça, \\
+número de consultas pré-natal e idade gestacional. Também são geradas variáveis ​​categóricas para facilitar a análise, como trimestre do \\
+nascimento e regiões do Brasil, com base no código do município. Além disso, há um tratamento específico para dados e códigos de anomalias congênitas,\\
+incluindo a geração de um indicador variável para microcefalia. Posteriormente, os dados do SINASC são combinados com informações da população residente por município, \\
+permitindo o cálculo de indicadores como taxas de nascimento por 100 mil habitantes ( ln_birth) e prevalência de microcefalia na população ( microcefalia_pop). \\
+Por fim, o código realiza regressões para avaliar os efeitos da microcefalia e outras variáveis ​​socioeconômicas e demográficas sobre o peso ao nascer, \\
+a idade gestacional e os índices de Apgar. Os resultados das regressões são armazenados e exportados para diferentes formatos de relatório, garantindo que possam ser utilizados para análises futuras.\\
+
+
+*unindo bases(planilhas) de 2015 e 2016
+use "C:\Users\marci\OneDrive\Documentos\Monografia_juliana\planilha_2010_2020\sinasc_2015.dta", clear
+append using "C:\Users\marci\OneDrive\Documentos\Monografia_juliana\planilha_2010_2020\sinasc_2016.dta"
+
+**# renomeando variveis
+
+rename codigo_municipio_ibge cod_munic
+rename anos_de_estudo_mae estudo_mae
+rename semanas_de_gestacao semanas_gestacao
+rename tipo_de_gravidez tipo_gravidez
+rename data_nascimento_bebe dtnasc_bebe
+rename hora_nascimento_bebe horanasc_bebe
+rename indice_apgar1 apgar1
+rename data_nasc_mae dtnasc_mae
+
+gen anos_estudo_mae = .
+replace anos_estudo_mae = 0 if estudo_mae == 0 // Sem escolaridade
+replace anos_estudo_mae = 4 if estudo_mae == 1 // Fundamental I (1ª a 4ª série)
+replace anos_estudo_mae = 8 if estudo_mae == 2 // Fundamental II (5ª a 8ª série)
+replace anos_estudo_mae = 11 if estudo_mae == 3 // Médio (antigo 2º Grau)
+replace anos_estudo_mae = 14 if estudo_mae == 4 // Superior incompleto
+replace anos_estudo_mae = 16 if estudo_mae == 5 // Superior completo
+replace anos_estudo_mae = . if estudo_mae == 9 // Ignorado
+
+**# Reescrevendo a data de nasc
+
+*ajeitando a data_nascimento_bebe
+tostring dtnasc_bebe, replace
+replace dtnasc_bebe = "0" + dtnasc_bebe if length(dtnasc_bebe) == 7
+
+gen dtnasc_bebe_num = date(dtnasc_bebe, "DMY")
+format dtnasc_bebe_num %tdDD/NN/CCYY
+drop dtnasc_bebe
+rename dtnasc_bebe_num dtnasc_bebe
+
+**# Criando dummys
+*dummys sexo_bebe
+*apagando os 0 porque nao tem o sexo do bebe
+drop if sexo_bebe == 0 
+gen sexo_masc = (sexo_bebe == 1)
+gen sexo_fem = (sexo_bebe == 2)
+
+*mudando a ordem da bases
+order dtnasc_bebe sexo_bebe sexo_masc sexo_fem cod_munic
+
+* Corrigir e converter códigos de anomalia para string
+destring codigo_anomalia_bebe, generate(new_code) force
+
+* Criar dummy para microcefalia
+gen microcefalia = 0
+replace microcefalia = 1 if regexm(codigo_anomalia_bebe, "Q02X") == 1
+
+* Gerar variável para indicar nascimento
+gen birth = 1
+
+* Criar dummy para estado civil da mãe
+gen solteira_dummy = (estado_civil_mae == 1)
+
+* Criar dummy para tipo de parto
+gen parto_dummy = (tipo_de_parto == 1)
+
+* Criar dummy para raça do bebê
+gen raca_bebe_dummy = (raca_bebe == 1 | raca_bebe == 3)
+
+* Criar dummy para sexo do bebê
+gen sexo_bebe_dummy = (sexo_bebe == 2)
+
+* Criar dummy para escolaridade da mãe
+gen escolaridade_mae_dummy = (escolaridade_mae >= 3 & escolaridade_mae <= 5)
+
+* Criar dummy para raça da mãe
+gen raca_mae_dummy = (raca_mae == 1 | raca_mae == 3)
+
+* Criar dummy para número de consultas pré-natal - as categorias 3 e 4 sao de 4 a 7+ consultas
+gen consultas_dummy_categorica = (numero_consultas_pre_natal >= 3 & numero_consultas_pre_natal <= 4) 
+
+* Criar dummy para semanas de gestação
+gen semanas_gestacao_dummy = (semanas_gestacao == 5 | semanas_gestacao == 6)
+
+**# criando varivel mes e ano
+
+gen month = month(dtnasc_bebe)
+gen year = year(dtnasc_bebe)
+
+
+rename cod_munic codigo_muni
+**# Combina planilha de população residente por municipio IBGE com a planilha sinasc 2010-2019
+merge m:m codigo_muni year using "C:\Users\marci\Downloads\populacao_res.dta"
+
+rename codigo_muni cod_munic
+
+*drop porque é categorica e ja criei uma dummy
+drop numero_consultas_pre_natal
+rename numero_consultas_pre_natal_2  numconsultas_pre_natal
+
+* variavel trimestre
+gen quarter_num = .
+replace quarter_num = 1 if month>=1&month<=3
+replace quarter_num = 2 if month>=4&month<=6
+replace quarter_num = 3 if month>=7&month<=9
+replace quarter_num = 4 if month>=10&month<=12
+
+egen quarter = concat(year quarter_num)
+destring quarter, replace
+
+save "C:\Users\marci\Downloads\Monografia_juliana\novas bases\Base1_ind-munic_sexo_bebe_parcial.dta", replace
+
+*criando teve_microcefalia- perguntar se é pra inverter a logica do bysort (eu inverti)
+gen microcefalia_pop = (microcefalia*pop)/100000 
+drop if microcefalia_pop == . 
+gen teve_microcefalia = 0
+bysort dtnasc_bebe (cod_munic): replace teve_microcefalia = 1 if microcefalia_pop >= 1  
+*nascimentos por 100 mil habitantes 
+gen birth_pop = (birth*pop)/100000
+gen ln_birth = ln(birth_pop)
+
+
+gen ln_peso=ln(peso_bebe)
+gen ln_semanas=ln(semanas_gestacao_dummy)
+
+
+*criando regioes pra ver na regressao
+gen regiao = .
+replace regiao = 1 if inlist(substr(string(cod_munic), 1, 2), "12", "16", "13", "15", "14", "11", "17")
+replace regiao = 2 if inlist(substr(string(cod_munic), 1, 2), "21", "22", "23", "24", "25", "26", "27", "28", "29")
+replace regiao = 3 if inlist(substr(string(cod_munic), 1, 2), "50", "51", "52", "53")
+replace regiao = 4 if inlist(substr(string(cod_munic), 1, 2), "31", "32", "33", "35")
+replace regiao = 5 if inlist(substr(string(cod_munic), 1, 2), "41", "42", "43")
+label define regiao_lbl 1 "Norte" 2 "Nordeste" 3 "Centro-Oeste" 4 "Sudeste" 5 "Sul"
+label values regiao regiao_lbl
+
+save "C:\Users\marci\Downloads\Monografia_juliana\novas bases\Base1_ind-munic_sexo_bebe.dta", replace
+
+_eststo clear 
+
+*regressao
+regress ln_peso teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter i.regiao [w=pop], rob
+est sto reg1
+
+regress semanas_gestacao teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter  i.regiao [w=pop], rob 
+est sto reg2
+regress apgar1 teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter  i.regiao [w=pop], rob
+est sto reg3
+
+regress apgar5 teve_microcefalia anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal i.quarter  i.regiao [w=pop], rob
+est sto reg4
+
+
+esttab reg1 reg2 reg3 reg4 using "resultados_regressoes.csv", 
+    replace cells("b t p") 
+    sheet("Regressoes")
+
+
+* Primeiro, carrega as estimativas armazenadas
+asdoc esttab reg1 reg2 reg3 reg4, se ar(0) scalars(r2 r2_a N) label compress
+using "resultados_base1.doc", replace rtf
+
+
+esttab  reg1 reg2 reg3 reg4 reg5 reg6 using dailystillwetbulb30.tex, replace refcat(Av daily Tmax , nolabel) se cells(b(star fmt(4)) se(par fmt(3))) stats(N , labels("Observations") fmt(0 2 0))  label star(* 0.10 ** 0.05 *** 0.01)  ///
+ drop (qtdfilmort agemom schooling  vaginal *.munic *.quarter doctor ) ///
+  scalars( "N Observations"  "p p-value" "ymean Mean Surplus") title(Effects of Exposure to Heat on causes of stillbirth using individual-level data 2005-2018  \label{dailytmaxbirth}) ///
+addnote("\footnotesize Standard errors in parentheses" "\begin{minipage}[t]{\columnwidth} \multicolumn{4}{l}{\footnotesize \begin{minipage}[t]{\columnwidth} The dependent variables are Hypoxia and other respiratory problems, Malformation, and Maternal Health Problems (fetus and newborn affected by maternal factors and by complications of pregnancy, labor, and delivery, as well as placenta and umbilical cord problems). The average daily wet-bulb temperature is the highest temperature adjusted for humidity, measured on the previous 30 days. All columns present panel regressions with controls (years of schooling and age of the mothers, number of previous child deaths, vaginal birth, and birth attended by a doctor) and fixed effects (municipality and quarter-year). All regressions are weighted by the total population in the municipality.\end{minipage}" "\footnotesize \sym{*} \(p<0.10\), \sym{**} \(p<0.05\), \sym{***} \(p<0.01\)")
+
+
+save "C:\Users\marci\Downloads\Monografia_juliana\novas bases\Base1_ind-munic_sexo_bebe.dta", replace
