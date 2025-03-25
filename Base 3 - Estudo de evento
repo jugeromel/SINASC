@@ -1,0 +1,128 @@
+clear
+use "C:\Users\marci\Downloads\Monografia_juliana\novas bases\Base1_ind-munic_sexo_bebe_parcial.dta", clear
+
+
+
+// Supondo que month e year são variáveis numéricas
+gen year_month = ym(year, month)
+format year_month %tm
+
+drop if dtnasc_bebe==.
+*nascimentos por 100 mil habitantes 
+gen birth_pop = (birth*pop)/100000
+
+* criar variavel microcefalia mes ano munic 
+
+gen microcefalia_pop = (microcefalia*pop)/100000 
+
+*collapse mes por munic
+
+collapse (sum) birth sexo_masc sexo_fem  (first) month sexo_bebe solteira_dummy parto_dummy sexo_bebe_dummy raca_bebe_dummy escolaridade_mae_dummy raca_mae_dummy consultas_dummy_categorica semanas_gestacao_dummy pop (sum) microcefalia  (mean) birth_pop microcefalia_pop anos_estudo_mae peso_bebe numero_gestacoes idade_mae apgar1 apgar5 numero_filhos_vivos numero_semanas_gestacoes numconsultas_pre_natal indice_kotelchuck, by(year_month cod_munic)
+
+tabstat  numconsultas_pre_natal   
+
+
+*criando teve_microcefalia- perguntar se é pra inverter a logica do bysort (eu inverti)
+
+drop if microcefalia_pop == . 
+gen teve_microcefalia = 0
+bysort year_month (cod_munic): replace teve_microcefalia = 1 if microcefalia_pop > 0  
+*mudei a formula para maior que 0 e ao inves de dtnasc_bebe coloquei month
+
+gen ln_birth = ln(birth_pop)
+gen ln_peso = ln(peso_bebe)
+
+*razao entre menina/menino
+gen sex_ratio =  sexo_masc/sexo_fem
+
+* variavel trimestre
+gen quarter_num = .
+replace quarter_num = 1 if month>=1&month<=3
+replace quarter_num = 2 if month>=4&month<=6
+replace quarter_num = 3 if month>=7&month<=9
+replace quarter_num = 4 if month>=10&month<=12
+
+egen quarter = concat(year quarter_num)
+destring quarter, replace
+
+*criando novas variaveis para regressao
+
+sort cod_munic
+by cod_munic: gen microcefalia_pos1 = 0
+by cod_munic: replace microcefalia_pos1 = 1 if teve_microcefalia == 1
+by cod_munic: gen microcefalia_minus1 = 0
+by cod_munic: replace microcefalia_minus1 = 1 if microcefalia_pos1[_n+1] == 1
+by cod_munic: gen microcefalia_minus2 = 0
+by cod_munic: replace microcefalia_minus2 = 1 if microcefalia_pos1[_n+2] == 1
+by cod_munic: gen microcefalia_minus3 = 0
+by cod_munic: replace microcefalia_minus3 = 1 if microcefalia_pos1[_n+3] == 1
+by cod_munic: gen microcefalia_minus4 = 0
+by cod_munic: replace microcefalia_minus4 = 1 if microcefalia_pos1[_n+4] == 1
+by cod_munic: gen microcefalia_minus5 = 0
+by cod_munic: replace microcefalia_minus5 = 1 if microcefalia_pos1[_n+5] == 1
+by cod_munic: gen microcefalia_minus6 = 0
+by cod_munic: replace microcefalia_minus6 = 1 if microcefalia_pos1[_n+6] == 1
+by cod_munic: gen microcefalia_pos2 = 0
+by cod_munic: replace microcefalia_pos2 = 1 if microcefalia_pos1[_n-1] == 1
+by cod_munic: gen microcefalia_pos3 = 0
+by cod_munic: replace microcefalia_pos3 = 1 if microcefalia_pos1[_n-2] == 1
+by cod_munic: gen microcefalia_pos4 = 0
+by cod_munic: replace microcefalia_pos4 = 1 if microcefalia_pos1[_n-3] == 1
+by cod_munic: gen microcefalia_pos5 = 0
+by cod_munic: replace microcefalia_pos5 = 1 if microcefalia_pos1[_n-4] == 1
+by cod_munic: gen microcefalia_pos6 = 0
+by cod_munic: replace microcefalia_pos6 = 1 if microcefalia_pos1[_n-5] == 1
+by cod_munic: gen microcefalia_pos7 = 0
+by cod_munic: replace microcefalia_pos7 = 1 if microcefalia_pos1[_n-6] == 1
+
+
+
+
+
+xtset cod_munic year_month
+
+
+_eststo clear
+* Rodar a regressão
+
+eststo: xtreg sex_ratio microcefalia_pos* microcefalia_m* anos_estudo_mae idade_mae numero_filhos_vivos numconsultas_pre_natal  i.quarter , fe vce(cl cod_munic)
+
+* csdid desligamento , ivar(grupo_cpf) time(date) gvar(volta) method(dripw)
+regsave, ci
+list
+* Save the results to an Excel file
+export excel using "C:\Users\marci\Downloads\Monografia_juliana\novas bases\results.csv", sheetmodify firstrow(variables) sheet("Sheet1")
+* criar o time -6 a +6
+clear
+* Fazer gráfico:
+import excel "C:\Users\marci\Downloads\Monografia_juliana\novas bases\results.csv", sheet("Sheet1") firstrow
+
+ 
+gen time=.
+replace time=1 if var=="microcefalia_pos1"
+replace time=0 if var=="microcefalia_minus1"
+replace time=2 if var=="microcefalia_pos2"
+replace time=3 if time[_n-1]==2
+replace time=4 if time[_n-1]==3
+replace time=5 if time[_n-1]==4
+replace time=6 if time[_n-1]==5
+replace time=7 if time[_n-1]==6
+replace time=8 if time[_n-1]==7
+*replace time=9 if time[_n-1]==8
+replace time=-1 if var=="microcefalia_minus2"
+replace time=-2 if time[_n-1]==-1
+replace time=-3 if time[_n-1]==-2
+replace time=-4 if time[_n-1]==-3
+replace time=-5 if time[_n-1]==-4
+replace time=-6 if time[_n-1]==-5
+
+drop if var=="_cons"
+
+save "resultado1.dta", replace
+
+sort time
+
+twoway rcap ci_lower ci_upper time || scatter coef time || connected coef time, ///
+    
+xlabel(1 "-5" 2 "-4" 3 "-3" 4 "-2" 5 "-1" 6 "0" 7 "1"
+8 "2" 9 "3" 10 "4" 11 "5" 12 "6"  )
